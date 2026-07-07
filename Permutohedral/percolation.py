@@ -55,23 +55,32 @@ def site_percolation(d, N, trials, homology=None, seed=None, verify=True, orient
     rng = np.random.default_rng(seed)
     percentages = np.zeros((trials, rank))
     giants = np.zeros(trials, dtype=int)
+    occupation = np.zeros(trials, dtype=float)
+
     for t in range(trials):
-        # a random order to occupy the corners: the corner with rank 0 fills first
-        vrank = rng.permutation(Nv)
-        # a simplex fills when its LAST corner fills, i.e. the largest rank among
-        # its corners. that number is its slot in the filtration order.
-        vals = vrank[S_pad].max(axis=1).astype(float)
-        for s, fv in zip(all_s, vals):
-            st.assign_filtration(s, fv)
-        st.compute_persistence(persistence_dim_max=True)
-        # giant cycles are the ones that never fill in (death = infinity). convert
-        # each one's birth slot into a density: how full the lattice was when it
-        # appeared.
-        ess = sorted((b + 1) / Nv for (b, dth) in
-                     st.persistence_intervals_in_dimension(homology) if dth == float("inf"))
-        k = min(len(ess), rank)
-        percentages[t, :k] = ess[:k]
-        # how many giants had already appeared by the half-full mark
-        giants[t] = int(np.sum(np.asarray(ess) <= 0.5))
-    occupation = np.full(trials, 0.5)
-    return percentages, giants, occupation, Nv
+        uniform = np.random.uniform(size=Nv)
+        include = np.nonzero(uniform < 1/2)[0]
+        exclude = np.nonzero(~(uniform < 1/2))[0]
+        m = include.shape[0]
+
+        occupation[t] = m/Nv
+
+        np.random.shuffle(include)
+
+        filtration = np.arange(Nv)
+        filtration[:m] = include
+        filtration[m:] = exclude
+
+        # not actually sure what this is doing?
+        vals = filtration[S_pad].max(axis=1).astype(float)
+        for s, fv in zip(all_s, vals): st.assign_filtration(s, fv)
+
+        # compute the persistence
+        st.compute_persistence(homology_coeff_field=2, persistence_dim_max=True)
+        pairs = st.persistence_intervals_in_dimension(homology)
+        immortal = np.sum(filtration[np.where(np.isinf(pairs[:,1]))[0]] < m)
+
+        giants[t] = immortal
+
+    return np.array([]), giants, occupation, Nv
+
