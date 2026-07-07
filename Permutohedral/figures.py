@@ -1,10 +1,15 @@
+# reads the saved run results and makes the per-size figures: a birth-density
+# curve for each giant cycle (occupation), a bar chart of how many giants were
+# present at half-full (rank), and one combined plot per dimension overlaying the
+# curves across all sizes (unified). run this after run.py.
+
 import json
 import pathlib
 from collections import defaultdict
 
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use("Agg")           # render to files, no window
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
 
@@ -15,9 +20,11 @@ plt.rcParams.update(**histograms.occupation.rcParams)
 STATS = pathlib.Path("output/statistics")
 OUT = pathlib.Path("output/figures")
 OUT.mkdir(parents=True, exist_ok=True)
-X = np.linspace(0, 1, 2048)
+X = np.linspace(0, 1, 2048)     # the x-axis grid (occupation 0 to 1) for the curves
 
 
+# load every output folder and key the results by (orientation, dimension, size).
+# folders without a finished metadata file are skipped.
 def _load():
     runs = {}
     for d in sorted(STATS.glob("*")):
@@ -35,11 +42,15 @@ def _load():
     return runs
 
 
+# index of a curve's tallest point, but only within the x-range we'll actually
+# draw, so the little rank label lands on the visible peak.
 def _peak_in_window(Z, xlim):
     win = (X >= xlim[0]) & (X <= xlim[1])
     return int(np.argmax(np.where(win, Z, -np.inf)))
 
 
+# pick a sensible x-range from the data: tight around where the births actually
+# sit, with a little padding each side, so the plot isn't mostly empty.
 def _auto_xlim(births_or_perc, pad=0.12):
     b = np.asarray(births_or_perc)
     b = b[b > 0]
@@ -48,16 +59,19 @@ def _auto_xlim(births_or_perc, pad=0.12):
     return (max(0.0, lo - pad * span), min(1.0, hi + pad * span))
 
 
+# for one run: a smooth curve per giant cycle showing the spread of densities at
+# which it was born. dividing by N keeps the heights comparable across runs. the
+# small numbers label which cycle (1st, 2nd, ...) each curve belongs to.
 def occupation_figure(orient, dim, meta, perc):
     L, RANK, N = meta["scale"], meta["rank"], meta["iterations"]
     xlim = _auto_xlim(perc)
     colors = histograms.occupation.colors(RANK)
     fig, ax = plt.subplots(figsize=histograms.occupation.figsize)
     for i in range(RANK):
-        h = perc[:, i][perc[:, i] > 0]
+        h = perc[:, i][perc[:, i] > 0]      # this cycle's births, ignoring trials where it never appeared
         if len(h) < 2:
             continue
-        Z = gaussian_kde(h)(X) / N
+        Z = gaussian_kde(h)(X) / N           # smooth the histogram into a curve
         ax.plot(X, Z, lw=1 / 2, alpha=1 / 2, color=colors[i])
         ax.fill_between(X, Z, alpha=1 / 2, color=colors[i], lw=0)
         mm = _peak_in_window(Z, xlim)
@@ -69,12 +83,13 @@ def occupation_figure(orient, dim, meta, perc):
     plt.close(fig)
 
 
+# for one run: bar chart of how often 0, 1, 2, ... giants were present at half-full.
 def rank_figure(orient, dim, meta, giants):
     L, RANK, N = meta["scale"], meta["rank"], meta["iterations"]
     vals, counts = np.unique(giants, return_counts=True)
     Y = np.zeros(RANK + 1)
     for v, c in zip(vals, counts):
-        Y[v] = c / N
+        Y[v] = c / N                         # counts -> frequency
     fig, ax = plt.subplots(figsize=histograms.rank.figsize)
     ax.bar(np.arange(RANK + 1), Y, **histograms.rank.bar)
     ax.set_xticks(np.arange(RANK + 1))
@@ -87,8 +102,11 @@ def rank_figure(orient, dim, meta, giants):
     plt.close(fig)
 
 
+# one plot per (orientation, dimension): overlay the birth-density curves from
+# every size, colored by size, so you can watch them sharpen as the lattice grows.
 def unified_figure(orient, dim, runs_for_dim):
     xlim = _auto_xlim(np.concatenate([perc[perc > 0] for _, perc, _ in runs_for_dim]))
+    # collect one smoothed curve per (size, cycle), averaging if a size repeats
     agg = defaultdict(list)
     RANK = homology = None
     for meta, perc, _ in runs_for_dim:
@@ -107,6 +125,7 @@ def unified_figure(orient, dim, runs_for_dim):
             if (L, i) not in agg:
                 continue
             Z = np.mean(agg[(L, i)], axis=0)
+            # later cycles drawn fainter and thinner so the plot stays readable
             alpha = max(0.15, 1.0 - i * 0.15)
             lw = 1.5 if i == 0 else 0.7
             label = rf"$L={L},\ \mathrm{{Rank}}\ {i+1}$" if i in (0, RANK - 1) else None
@@ -130,6 +149,7 @@ if __name__ == "__main__":
     runs = _load()
     if not runs:
         raise SystemExit("no statistics found; run run.py first")
+    # per-run figures, then one combined figure per (orientation, dimension)
     by_group = defaultdict(list)
     for (orient, dim, scale), (meta, perc, giants) in sorted(runs.items()):
         occupation_figure(orient, dim, meta, perc)
