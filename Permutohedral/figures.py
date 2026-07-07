@@ -87,6 +87,7 @@ def occupation_figure(orient, dim, meta, perc):
 def rank_figure(orient, dim, meta, giants):
     L, RANK, N = meta["scale"], meta["rank"], meta["iterations"]
     vals, counts = np.unique(giants, return_counts=True)
+    print(giants)
     Y = np.zeros(RANK + 1)
     for v, c in zip(vals, counts):
         Y[v] = c / N                         # counts -> frequency
@@ -152,9 +153,11 @@ if __name__ == "__main__":
     # per-run figures, then one combined figure per (orientation, dimension)
     by_group = defaultdict(list)
     for (orient, dim, scale), (meta, perc, giants) in sorted(runs.items()):
-        occupation_figure(orient, dim, meta, perc)
+        # occupation_figure(orient, dim, meta, perc)
         rank_figure(orient, dim, meta, giants)
-        by_group[(orient, dim)].append((meta, perc, giants))
-    for (orient, dim), lst in sorted(by_group.items()):
-        unified_figure(orient, dim, lst)
+        # by_group[(orient, dim)].append((meta, perc, giants))
+    # for (orient, dim), lst in sorted(by_group.items()):
+    #     unified_figure(orient, dim, lst)
     print("figures written")
+
+

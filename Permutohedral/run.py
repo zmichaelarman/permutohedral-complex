@@ -15,9 +15,9 @@ from percolation import site_percolation
 from permutohedral import square_repetitions
 
 DEFAULT_DIM = 4
-DEFAULT_TRIALS = 5000
+DEFAULT_TRIALS = 1000
 # the lattice sizes used for each dimension when none are given on the command line
-DEFAULT_SCALES = {2: [10, 20, 40, 80], 3: [3, 4, 6, 8], 4: [3, 4, 6, 8, 9]}
+DEFAULT_SCALES = {2: [10, 20, 40, 80], 3: [3, 4, 6, 8], 4: [3, 4, 6]}
 
 
 # run one lattice size and write its output folder
@@ -33,7 +33,7 @@ def run_scale(dim, L, homology, trials, seed=None, orientation="rhombic"):
     tag = "" if orientation == "rhombic" else f"{orientation}_"
     out = pathlib.Path(f"output/statistics/d{dim}_{tag}L{L}")
     out.mkdir(parents=True, exist_ok=True)
-    np.save(out / "percentages", perc)     # birth density of each giant, per trial
+    # np.save(out / "percentages", perc)     # birth density of each giant, per trial
     np.save(out / "giants", giants)        # how many giants by half-full, per trial
     np.save(out / "occupation", occ)       # occupation level (always 0.5 here)
     meta = {
@@ -54,7 +54,7 @@ def run_scale(dim, L, homology, trials, seed=None, orientation="rhombic"):
 if __name__ == "__main__":
     # read the command line: flags start with --, bare numbers are lattice sizes
     args = sys.argv[1:]
-    dim, trials, homology, orientation, scales = DEFAULT_DIM, DEFAULT_TRIALS, None, "rhombic", []
+    dim, trials, homology, orientation, scales = DEFAULT_DIM, DEFAULT_TRIALS, None, "square", []
     i = 0
     while i < len(args):
         a = args[i]
