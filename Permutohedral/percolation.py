@@ -55,15 +55,26 @@ def site_percolation(d, N, trials, homology=None, seed=None, verify=True, orient
     rng = np.random.default_rng(seed)
     percentages = np.zeros((trials, rank))
     giants = np.zeros(trials, dtype=int)
+    occupation = np.zeros(trials)      # realized heads fraction, one per trial
     for t in range(trials):
-        # a random order to occupy the corners: the corner with rank 0 fills first
-        vrank = rng.permutation(Nv)
+        # bernoulli occupation: flip a fair coin per corner. heads (occupied) take
+        # the low ranks, tails (empty) the high ranks, random order inside each
+        # group. so the filtration fills exactly the occupied set first, then the
+        # rest -- this lets the persistence below tell a real wrapping cycle (still
+        # open after every corner is added) from one only closed up by empty corners.
+        heads = rng.random(Nv) < 0.5
+        n_heads = int(heads.sum())
+        order = rng.permutation(Nv)                 # random order over all corners
+        # stable sort keeps heads (key False) ahead of tails, random within each block
+        blocks = order[np.argsort(~heads[order], kind="stable")]
+        vrank = np.empty(Nv, dtype=np.int64)
+        vrank[blocks] = np.arange(Nv)               # vrank[corner] = its fill slot
         # a simplex fills when its LAST corner fills, i.e. the largest rank among
         # its corners. that number is its slot in the filtration order.
         vals = vrank[S_pad].max(axis=1).astype(float)
         for s, fv in zip(all_s, vals):
             st.assign_filtration(s, fv)
-        st.compute_persistence(persistence_dim_max=True)
+        st.compute_persistence(homology_coeff_field=2, persistence_dim_max=True)
         # giant cycles are the ones that never fill in (death = infinity). convert
         # each one's birth slot into a density: how full the lattice was when it
         # appeared.
@@ -71,7 +82,9 @@ def site_percolation(d, N, trials, homology=None, seed=None, verify=True, orient
                      st.persistence_intervals_in_dimension(homology) if dth == float("inf"))
         k = min(len(ess), rank)
         percentages[t, :k] = ess[:k]
-        # how many giants had already appeared by the half-full mark
-        giants[t] = int(np.sum(np.asarray(ess) <= 0.5))
-    occupation = np.full(trials, 0.5)
+        # a giant counts for this bernoulli sample only if it was already open once
+        # just the occupied (heads) corners were present -- i.e. born within the
+        # first n_heads fill slots (birth density <= n_heads / Nv).
+        giants[t] = int(np.sum(np.asarray(ess) <= n_heads / Nv))
+        occupation[t] = n_heads / Nv
     return percentages, giants, occupation, Nv
